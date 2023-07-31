@@ -1,7 +1,11 @@
 const {BlobServiceClient} = require("@azure/storage-blob");
 require("dotenv").config();
-const {Client, GatewayIntentBits} = require("discord.js");
-const websiteUpdate = require("./websiteUpdate");
+const {Client, GatewayIntentBits, Partials} = require("discord.js");
+const websiteUpdate = require("./func/websiteUpdate");
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
+const uploadToAzure = require("./func/uploadToAzure");
+const fs = require("fs");
 
 if (!process.env.AZURE_STORAGE_CONNECTION_STRING) {
     throw new Error("AZURE_BLOB_SAS_URL must be set in .env file");
@@ -18,7 +22,7 @@ const blobServiceClient = BlobServiceClient.fromConnectionString(
     process.env.AZURE_STORAGE_CONNECTION_STRING
 );
 
-const DiscordClient = new Client({intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]});
+const DiscordClient = new Client({intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessageReactions], partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildMember],});
 
 async function main() {
     try {
@@ -30,51 +34,151 @@ async function main() {
         console.log("----------------------------");
 
         const containerClient = blobServiceClient.getContainerClient(process.env.AZURE_BLOB_CONTAINER);
+        const commands = [];
+
 
         DiscordClient.on("ready", () => {
             console.log("Bot is ready!");
+
+            //register commands from ./commands folder
+            const commandFiles = fs
+                .readdirSync("./commands")
+                .filter((file) => file.endsWith(".js"));
+            for (const file of commandFiles) {
+                let data = require(`./commands/${file}`);
+                commands.push(data);
+                DiscordClient.application.commands
+                    .create(data.command)
+                    .then(() =>
+                        console.log(
+                            new Date().toLocaleString(),
+                            `Created command /${data.command.name}`
+                        )
+                    )
+                    .catch(console.error);
+            }
+        });
+
+        DiscordClient.on("interactionCreate", async (interaction) => {
+            if (interaction.isCommand()) {
+                const command = commands.find(
+                    (command) => command.command.name === interaction.commandName
+                );
+                if (!command) return;
+                try {
+                    await command.run(DiscordClient, interaction, prisma);
+                } catch (error) {
+                    console.error(error);
+                    await interaction.reply({
+                        content: "There was an error while executing this command!",
+                        ephemeral: true,
+                    });
+                }
+            }
         });
 
         DiscordClient.on("messageCreate", async (message) => {
-            if (message.channelId !== process.env.DISCORD_CHANNEL_ID || message.attachments.size === 0 || message.author.bot) {
-                return;
-            }
-
-            const attachments = message.attachments;
-            const folderID = message.author.id;
-
-            let i = 1;
-            for (const [key, value] of attachments) {
-                if (!value.contentType.startsWith("image")) {
-                    return;
+            if (message.author.bot) return;
+            if (message.channelId !== process.env.DISCORD_CHANNEL_ID) return;
+            if (message.attachments.size === 0) return;
+            await prisma.message.create({
+                data: {
+                    id: message.id
                 }
+            });
 
-                const fileType = value.contentType.split("/")[1];
-                const blobClient = containerClient.getBlobClient(`${folderID}/${message.id}-${i++}.${fileType}`);
-                const blockBlobClient = blobClient.getBlockBlobClient();
-                const response = await fetch(value.url);
-                const buffer = await response.arrayBuffer();
-                const uploadBlobResponse = await blockBlobClient.upload(buffer, buffer.byteLength, {
-                    tags: {
-                        'messageid': message.id.toString()
+            let writeableConfig = require("./writeableConfig.json");
+            await message.react(writeableConfig["upvote"]);
+            await message.react(writeableConfig["downvote"]);
+
+        });
+
+        DiscordClient.on("messageReactionAdd", async (reaction, user) => {
+            let writeableConfig = require("./writeableConfig.json");
+
+            if(user.bot) return;
+            //search if user already voted
+            let search = await prisma.vote.findFirst({
+                where: {
+                    messageId: reaction.message.id,
+                    UserId: user.id,
+                    upvote: (reaction.emoji.name === writeableConfig["upvote"])
+                }
+            });
+            if(!search) {
+                console.log(reaction.emoji.name, reaction.message.id);
+                let writeableConfig = require("./writeableConfig.json");
+                prisma.message.findFirst({
+                    where: {
+                        id: reaction.message.id
+                    }
+                }).then(
+                    (message) => {
+                        if(message.uploaded) return;
+                        prisma.message.update(
+                            {
+                                where: {
+                                    id: reaction.message.id
+                                },
+                                data: {
+                                    upvotes: message.upvotes + (reaction.emoji.name === writeableConfig["upvote"] ? 1 : 0),
+                                    downvotes: message.downvotes + (reaction.emoji.name === writeableConfig["downvote"] ? 1 : 0)
+                                },
+                                select: {
+                                    upvotes: true,
+                                    downvotes: true,
+                                    uploaded: true
+                                }
+                            }
+                        ).then(async (msg) => {
+                            if (msg.upvotes - msg.downvotes >= writeableConfig["threshold"] && msg.uploaded === false) {
+                                await reaction.message.react("✅");
+
+                                let messageAtt = await DiscordClient.channels.cache.get(process.env.DISCORD_CHANNEL_ID).messages.cache.get(reaction.message.id).fetch();
+                                await uploadToAzure(messageAtt, containerClient);
+                            }
+                        });
+                    }
+                );
+                await prisma.vote.create({
+                    data: {
+                        messageId: reaction.message.id,
+                        UserId: user.id,
+                        upvote: (reaction.emoji.name === writeableConfig["upvote"])
                     }
                 });
-                console.log(`Upload block blob successfully`, uploadBlobResponse.requestId, key);
             }
-
-            await websiteUpdate(containerClient);
-            await message.react("✅");
         });
 
         DiscordClient.on("messageDelete", async (message) => {
-            const tagValue = message.id.toString();
-            for await (const blob of blobServiceClient.findBlobsByTags(`messageid='${tagValue}'`)) {
-                const blobClient = containerClient.getBlobClient(blob.name);
-                const deleteBlobResponse = await blobClient.delete();
-                console.log(`Deleted block blob successfully`, deleteBlobResponse.requestId);
-            }
+            if(message.channelId !== process.env.DISCORD_CHANNEL_ID) return;
+            let search = await prisma.message.findFirst({
+                where: {
+                    id: message.id
+                }
+            });
+            if(!search) return;
 
-            await websiteUpdate(containerClient);
+            prisma.message.delete({
+                where: {
+                    id: message.id
+                },
+                select: {
+                    uploaded: true
+                }
+            }).then(async (msg) => {
+                if (msg.uploaded === true) {
+                    const tagValue = message.id.toString();
+
+                    for await (const blob of blobServiceClient.findBlobsByTags(`messageid='${tagValue}'`)) {
+                        const blobClient = containerClient.getBlobClient(blob.name);
+                        const deleteBlobResponse = await blobClient.delete();
+                        console.log(`Deleted block blob successfully`, deleteBlobResponse.requestId);
+                    }
+
+                    await websiteUpdate(containerClient);
+                }
+            });
         });
 
         await DiscordClient.login(process.env.DISCORD_TOKEN);
