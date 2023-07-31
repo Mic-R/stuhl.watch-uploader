@@ -95,6 +95,12 @@ async function main() {
 
         DiscordClient.on("messageReactionAdd", async (reaction, user) => {
             let writeableConfig = require("./writeableConfig.json");
+            if((reaction.partial) || (user.partial)) {
+                await reaction.fetch();
+                await user.fetch();
+            }
+
+            if(reaction.message.channelId !== process.env.DISCORD_CHANNEL_ID) return;
 
             if(user.bot) return;
             //search if user already voted
