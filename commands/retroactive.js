@@ -7,7 +7,7 @@ module.exports = {
     run: async (client, interaction, prisma) => {
         const uploadToAzure = require("../func/uploadToAzure.js");
 
-        client.channels.cache.get(process.env.DISCORD_CHANNEL_ID).messages.fetch({limit: 1500}).then((messagesColl) => {
+        client.channels.cache.get(process.env.DISCORD_CHANNEL_ID).messages.fetch({limit: 100}).then((messagesColl) => {
             if(messagesColl.size === 0) {
                 interaction.reply("No messages found", {ephemeral: true});
                 return;
