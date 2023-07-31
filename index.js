@@ -78,6 +78,7 @@ async function main() {
         });
 
         DiscordClient.on("messageCreate", async (message) => {
+            if(message.partial) await message.fetch();
             if (message.author.bot) return;
             if (message.channelId !== process.env.DISCORD_CHANNEL_ID) return;
             if (message.attachments.size === 0) return;
