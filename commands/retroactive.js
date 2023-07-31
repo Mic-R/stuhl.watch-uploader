@@ -29,6 +29,7 @@ module.exports = {
                         id: message.id
                     }
                 });
+                console.log("Message created in database");
             });
 
             interaction.reply("Retroactive upload complete", {ephemeral: true});
