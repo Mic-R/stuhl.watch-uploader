@@ -1,5 +1,7 @@
 {
   "upvote": "<:Sstuhlup:1135269768480436264>",
   "downvote": "<:Sstuhldown:1135269839888457779>",
+  "upvoteName": "Sstuhlup",
+  "downvoteName": "Sstuhldown",
   "threshold": 100
 }

@@ -128,8 +128,8 @@ async function main() {
                                     id: reaction.message.id
                                 },
                                 data: {
-                                    upvotes: message.upvotes + (reaction.emoji.name === writeableConfig["upvote"] ? 1 : 0),
-                                    downvotes: message.downvotes + (reaction.emoji.name === writeableConfig["downvote"] ? 1 : 0)
+                                    upvotes: message.upvotes + (reaction.emoji.name === writeableConfig["upvoteName"] ? 1 : 0),
+                                    downvotes: message.downvotes + (reaction.emoji.name === writeableConfig["downvoteName"] ? 1 : 0)
                                 },
                                 select: {
                                     upvotes: true,
@@ -151,7 +151,7 @@ async function main() {
                     data: {
                         messageId: reaction.message.id,
                         UserId: user.id,
-                        upvote: (reaction.emoji.name === writeableConfig["upvote"])
+                        upvote: (reaction.emoji.name === writeableConfig["upvoteName"])
                     }
                 });
             }
