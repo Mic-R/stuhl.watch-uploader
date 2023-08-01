@@ -109,7 +109,7 @@ async function main() {
                 where: {
                     messageId: reaction.message.id,
                     UserId: user.id,
-                    upvote: (reaction.emoji.name === writeableConfig["upvote"])
+                    upvote: (reaction.emoji.name === writeableConfig["upvoteName"])
                 }
             });
             if(!search) {
