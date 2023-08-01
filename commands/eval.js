@@ -14,9 +14,9 @@ module.exports = {
             //add the reactions
             let discordMessage = await client.channels.cache.get(process.env.DISCORD_CHANNEL_ID).messages.fetch(message.id);
             await discordMessage.fetch();
-            let upvotes = Array.from(discordMessage.reactions.cache.values()).filter((a) => a.emoji.name === writeableConfig["upvoteName"])[0].count;
+            let upvotes = Array.from(discordMessage.reactions.cache.values()).filter((a) => a.emoji.name === writeableConfig["upvoteName"])[0].count || 0;
             console.log(upvotes)
-            let downvotes = Array.from(discordMessage.reactions.cache.values()).filter((a) => a.emoji.name === writeableConfig["downvoteName"])[0].count;
+            let downvotes = Array.from(discordMessage.reactions.cache.values()).filter((a) => a.emoji.name === writeableConfig["downvoteName"])[0].count || 0;
 
             prisma.message.findFirst({
                 where: {
