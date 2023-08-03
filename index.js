@@ -1,6 +1,6 @@
-const {BlobServiceClient} = require("@azure/storage-blob");
+const { BlobServiceClient } = require("@azure/storage-blob");
 require("dotenv").config();
-const {Client, GatewayIntentBits, Partials} = require("discord.js");
+const { Client, GatewayIntentBits, Partials } = require("discord.js");
 const websiteUpdate = require("./func/websiteUpdate");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
@@ -22,7 +22,7 @@ const blobServiceClient = BlobServiceClient.fromConnectionString(
     process.env.AZURE_STORAGE_CONNECTION_STRING
 );
 
-const DiscordClient = new Client({intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessageReactions], partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildMember],});
+const DiscordClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessageReactions], partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildMember], });
 
 async function main() {
     try {
@@ -78,7 +78,7 @@ async function main() {
         });
 
         DiscordClient.on("messageCreate", async (message) => {
-            if(message.partial) await message.fetch();
+            if (message.partial) await message.fetch();
             if (message.author.bot) return;
             if (message.channelId !== process.env.DISCORD_CHANNEL_ID) return;
             if (message.attachments.size === 0) return;
@@ -96,15 +96,23 @@ async function main() {
 
         DiscordClient.on("messageReactionAdd", async (reaction, user) => {
             let writeableConfig = require("./writeableConfig.json");
-            if((reaction.partial) || (user.partial)) {
+            if ((reaction.partial) || (user.partial)) {
                 await reaction.fetch();
                 await user.fetch();
             }
 
-            if(reaction.message.channelId !== process.env.DISCORD_CHANNEL_ID) return;
+            if (reaction.message.channelId !== process.env.DISCORD_CHANNEL_ID) return;
 
-            if(user.bot) return;
-            //search if user already voted
+            if (user.bot) return;
+
+            let message = await prisma.message.findFirst({
+                where: {
+                    id: reaction.message.id
+                }
+            });
+
+            if (message.uploaded) return;
+
             let search = await prisma.vote.findFirst({
                 where: {
                     messageId: reaction.message.id,
@@ -112,41 +120,34 @@ async function main() {
                     upvote: (reaction.emoji.name === writeableConfig["upvoteName"])
                 }
             });
-            if(!search) {
+
+
+            if (!search) {
                 console.log(reaction.emoji.name, reaction.message.id);
                 let writeableConfig = require("./writeableConfig.json");
-                prisma.message.findFirst({
-                    where: {
-                        id: reaction.message.id
+                prisma.message.update(
+                    {
+                        where: {
+                            id: reaction.message.id
+                        },
+                        data: {
+                            upvotes: message.upvotes + (reaction.emoji.name === writeableConfig["upvoteName"] ? 1 : 0),
+                            downvotes: message.downvotes + (reaction.emoji.name === writeableConfig["downvoteName"] ? 1 : 0)
+                        },
+                        select: {
+                            upvotes: true,
+                            downvotes: true,
+                            uploaded: true
+                        }
                     }
-                }).then(
-                    (message) => {
-                        if(message.uploaded) return;
-                        prisma.message.update(
-                            {
-                                where: {
-                                    id: reaction.message.id
-                                },
-                                data: {
-                                    upvotes: message.upvotes + (reaction.emoji.name === writeableConfig["upvoteName"] ? 1 : 0),
-                                    downvotes: message.downvotes + (reaction.emoji.name === writeableConfig["downvoteName"] ? 1 : 0)
-                                },
-                                select: {
-                                    upvotes: true,
-                                    downvotes: true,
-                                    uploaded: true
-                                }
-                            }
-                        ).then(async (msg) => {
-                            if (msg.upvotes - msg.downvotes >= writeableConfig["threshold"] && msg.uploaded === false) {
-                                await reaction.message.react("✅");
+                ).then(async (msg) => {
+                    if (msg.upvotes - msg.downvotes >= writeableConfig["threshold"] && msg.uploaded === false) {
+                        await reaction.message.react("✅");
 
-                                let messageAtt = await DiscordClient.channels.cache.get(process.env.DISCORD_CHANNEL_ID).messages.cache.get(reaction.message.id).fetch();
-                                await uploadToAzure(messageAtt, containerClient);
-                            }
-                        });
+                        let messageAtt = await DiscordClient.channels.cache.get(process.env.DISCORD_CHANNEL_ID).messages.cache.get(reaction.message.id).fetch();
+                        await uploadToAzure(messageAtt, containerClient);
                     }
-                );
+                });
                 await prisma.vote.create({
                     data: {
                         messageId: reaction.message.id,
@@ -158,13 +159,13 @@ async function main() {
         });
 
         DiscordClient.on("messageDelete", async (message) => {
-            if(message.channelId !== process.env.DISCORD_CHANNEL_ID) return;
+            if (message.channelId !== process.env.DISCORD_CHANNEL_ID) return;
             let search = await prisma.message.findFirst({
                 where: {
                     id: message.id
                 }
             });
-            if(!search) return;
+            if (!search) return;
 
             prisma.message.delete({
                 where: {
