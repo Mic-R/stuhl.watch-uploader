@@ -82,6 +82,7 @@ async function main() {
             if (message.author.bot) return;
             if (message.channelId !== process.env.DISCORD_CHANNEL_ID) return;
             if (message.attachments.size === 0) return;
+            console.log("Adding new message")
             await prisma.message.create({
                 data: {
                     id: message.id
