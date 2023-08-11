@@ -176,7 +176,7 @@ async function main() {
                     uploaded: true
                 }
             }).then(async (msg) => {
-                if (msg.uploaded === true) {
+                /* if (msg.uploaded === true) {
                     const tagValue = message.id.toString();
 
                     for await (const blob of blobServiceClient.findBlobsByTags(`messageid='${tagValue}'`)) {
@@ -186,7 +186,7 @@ async function main() {
                     }
 
                     await websiteUpdate(containerClient);
-                }
+                } */
             });
         });
 
