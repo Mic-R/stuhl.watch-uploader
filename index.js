@@ -176,6 +176,18 @@ async function main() {
                     uploaded: true
                 }
             }).then(async (msg) => {
+                prisma.message.update({
+                    where: {
+                        id: message.id
+                    },
+                    data: {
+                        uploaded: true,
+                        upvotes: 0,
+                        downvotes: 0
+                    }
+                }).then(() => {
+                    console.log("Deleted message", message.id, "RESET")
+                })
                 /* if (msg.uploaded === true) {
                     const tagValue = message.id.toString();
 
