@@ -1,6 +1,6 @@
 module.exports = async (message, containerClient) => {
     const websiteUpdate = require("./websiteUpdate.js");
-
+    if (message.partial) await message.fetch()
     const attachments = message.attachments;
 
     let i = 1;
