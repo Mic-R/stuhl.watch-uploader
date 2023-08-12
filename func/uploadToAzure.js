@@ -4,6 +4,8 @@ module.exports = async (message, containerClient) => {
     const attachments = message.attachments;
 
     let i = 1;
+
+    console.log(attachments);
     for (const [key, value] of attachments) {
         console.log("Upload");
         const fileType = value.contentType.split("/")[1];
