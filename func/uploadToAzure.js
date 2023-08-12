@@ -5,10 +5,7 @@ module.exports = async (message, containerClient) => {
 
     let i = 1;
     for (const [key, value] of attachments) {
-        if (!value.contentType.startsWith("image")) {
-            return;
-        }
-
+        console.log("Upload");
         const fileType = value.contentType.split("/")[1];
         const blobClient = containerClient.getBlobClient(`${Date.now()}/${message.id}-${i++}.${fileType}`);
         const blockBlobClient = blobClient.getBlockBlobClient();
