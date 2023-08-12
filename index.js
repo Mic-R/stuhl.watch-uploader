@@ -147,6 +147,17 @@ async function main() {
 
                         let messageAtt = await DiscordClient.channels.cache.get(process.env.DISCORD_CHANNEL_ID).messages.cache.get(reaction.message.id).fetch();
                         await uploadToAzure(messageAtt, containerClient);
+
+                        prisma.message.update(
+                    {
+                        where: {
+                            id: reaction.message.id
+                        },
+                        data: {
+                            uploaded: true
+                        }
+                    }
+                )
                     }
                 });
                 await prisma.vote.create({
