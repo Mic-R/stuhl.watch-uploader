@@ -14,7 +14,7 @@ module.exports = async (message, containerClient) => {
             'messageid': message.id.toString()
         }
     });
-    console.log(`Upload block blob successfully`, uploadBlobResponse.requestId, key);
+    console.log(`Upload block blob successfully`, uploadBlobResponse.requestId);
 
     await websiteUpdate(containerClient);
 }
